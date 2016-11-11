@@ -5,6 +5,7 @@
 
 require 'dynarex'
 require 'app-routes'
+require 'digest/md5'
 require 'chronic_cron'
 
 
@@ -26,25 +27,26 @@ class RemindersTxt
   
   attr_reader :expressions
   
-  def initialize(s, now: Time.now, dxfilepath: 'reminders.xml')
+  def initialize(filename='reminders.txt', now: Time.now, dxfilepath: 'reminders.xml')
     
-    @raw_input = s
+    
+    s = File.read filename
+    @file_contents, @filename = s, filename
     @now = now
     
-    Dir.chdir File.dirname(dxfilepath) if dxfilepath
+    Dir.chdir File.dirname(filename)
     
     @dxfilepath = dxfilepath
     
     super()
-    @params = {input: s}
+    @params = {}
     expressions(@params)
-    buffer = s[2..-1]
+    buffer = s.lines[2..-1]
 
     @reminders = buffer.inject([]) do |r, x|  
       if (x.length > 1) then
         @params[:input] = x.strip
         rx = find_expression(x) 
-        rx.input = x.strip
         r << rx
       end
       r
@@ -53,7 +55,7 @@ class RemindersTxt
     update()
   end
   
-  def create_dx()
+  def save_dx()
     
     dx = Dynarex.new('reminders/reminder(input, title, recurring, date, end_date)')
     @reminders.each {|x| dx.create x.to_h}
@@ -63,40 +65,56 @@ class RemindersTxt
   
   def refresh()
     
-    @reminders.map! do |x|
-       x.date = x.date.is_a?(Time) ? x.date : Chronic.parse(x.date)
-       x
-    end
-     
+    #@reminders.map! do |x|
+    #   x.date = x.date.is_a?(Time) ? x.date : Chronic.parse(x.date)
+    #   x
+    #end
+
     # synchronise with the XML file
     # if XML file doesn't exist, create it
     
     if File.exists? @dxfilepath then
-      
+
       dx = Dynarex.new @dxfilepath
       
       @reminders.map do |reminder|
+        s = reminder.input
+        r = dx.find_by_input s
         
-        r = dx.find_by_input reminder.input
-        reminder.date = Date.parse r.date
+        # it is on file and it's not an annual event?
+        reminder.date = (r and not s[/\*$/]) ? Date.parse(r.date) : reminder.date.to_date
         
         reminder
       end
-      
-    else
-      create_dx()
+            
     end
-    
 
     # delete expired non-recurring reminders
     @reminders.reject! {|x|  x.date.to_time < @now }
     
     @reminders.sort_by!(&:date)
     
+
+    # did the reminders change?
+    
+    h1 = (Digest::MD5.new << self.to_s).to_s
+    h2 = (Digest::MD5.new << @file_contents).to_s
+
+    b = h1 != h2
+        
+    if b then
+      
+      save_dx()      
+      File.write @filename, self.to_s 
+
+    end
+    
+    [:refresh, b]
+        
   end
   
   def to_s()
-    @raw_input[0..2].join + @reminders.map(&:input).join("\n")
+    @file_contents.lines[0..2].join + @reminders.map(&:input).join("\n")
   end
   
   alias update refresh
@@ -116,20 +134,26 @@ class RemindersTxt
     starting = /(?:\(?\s*starting (\d+\w{2} \w+\s*\w*)(?: until (.*))?\s*\))?/
 
     get /^(.*)(every \w+ \w+(?: at (\d+am) )?)\s*#{starting}/ do \
-                                                |title, recurring, time, date, end_date|
+                                                |title, recurring, time, raw_date, end_date|
       
       input = params[:input]
       
+      d = Chronic.parse(raw_date)
+      
       if recurring =~ /day|week/ then
+                
         
-        earlier_date = Chronic.parse(date)
-        new_date = CronFormat.new(ChronicCron.new(recurring).to_expression, earlier_date).to_time
-        input.gsub!(date, new_date.strftime("#{new_date.day.ordinal} %b %Y"))        
-        date = new_date
+        if d < @now then
+          
+          new_date = CronFormat.new(ChronicCron.new(recurring).to_expression, d).to_time
+          input.gsub!(date, new_date.strftime("#{new_date.day.ordinal} %b %Y"))        
+          d = new_date
+          
+        end
       end
       
 
-      OpenStruct.new input: input, title: title, recurring: recurring, date: date, end_date: end_date
+      OpenStruct.new input: input, title: title, recurring: recurring, date: d, end_date: end_date
       #[0, title, recurring, time, date, end_date].inspect
     end
     
@@ -137,21 +161,34 @@ class RemindersTxt
     # some meeting First thursday of the month at 7:30pm
     get /(.*)\s+(\w+ \w+day of (?:the|every) month at .*)/ do |title, recurring|
       
-      OpenStruct.new input: '', title: title, recurring: recurring
+      OpenStruct.new input: params[:input], title: title, recurring: recurring
       #[1, title, recurring].inspect
     end        
  
     # some important day 24th Mar
-    get /(.*)\s+(\d+.*)/ do |title, date|
+    get /(.*)\s+(\d+[^\*]+)(\*)?/ do |title, raw_date, annualar|
+
+      d = Chronic.parse(raw_date)
       
-      OpenStruct.new input: '', title: title, date: date
+      if annualar and d < @now then
+        d = Chronic.parse(raw_date, now: Time.local(@now.year + 1, 1, 1)) 
+      end
+
+      OpenStruct.new input: params[:input], title: title, date: d
       #[2, title, date].inspect
     end
     
     # 27-Mar@1436 some important day
-    get /(\d[^\s]+)\s+(.*)/ do |date, title|
+    get /(\d[^\s]+)\s+([^\*]+)(\*)?/ do |raw_date, title, annualar|
 
-      OpenStruct.new input: '', title: title, date: date
+      d = Chronic.parse(raw_date)
+      
+      if annualar and d < @now then
+        d = Chronic.parse(raw_date, now: Time.local(@now.year + 1, 1, 1)) 
+      end
+      
+      
+      OpenStruct.new input: params[:input], title: title, date: d
       #[3, title, date].inspect
     end    
     

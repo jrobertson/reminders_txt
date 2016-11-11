@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name = 'reminders_txt'
-  s.version = '0.2.0'
+  s.version = '0.3.1'
   s.summary = 'Reads and updates diary reminders from a plain text file'
   s.authors = ['James Robertson']
   s.files = Dir['lib/reminders_txt.rb']
