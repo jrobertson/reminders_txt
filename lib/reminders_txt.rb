@@ -3,7 +3,7 @@
 # file: reminders_txt.rb
 
 
-require 'recordx'
+require 'dynarex'
 require 'app-routes'
 require 'chronic_cron'
 
@@ -26,33 +26,80 @@ class RemindersTxt
   
   attr_reader :expressions
   
-  def initialize(s, now=Time.now)
+  def initialize(s, now: Time.now, dxfilepath: 'reminders.xml')
     
     @raw_input = s
+    @now = now
+    
+    Dir.chdir File.dirname(dxfilepath) if dxfilepath
+    
+    @dxfilepath = dxfilepath
+    
     super()
     @params = {input: s}
     expressions(@params)
     buffer = s[2..-1]
 
-    @expressions = buffer.inject([]) do |r, x|  
+    @reminders = buffer.inject([]) do |r, x|  
       if (x.length > 1) then
-        @params[:input] = x
+        @params[:input] = x.strip
         rx = find_expression(x) 
-        rx.input = x
+        rx.input = x.strip
         r << rx
       end
       r
     end
+    
+    update()
+  end
+  
+  def create_dx()
+    
+    dx = Dynarex.new('reminders/reminder(input, title, recurring, date, end_date)')
+    @reminders.each {|x| dx.create x.to_h}
+    dx.save @dxfilepath
+    
   end
   
   def refresh()
     
-    a = @expressions.sort_by do |x| 
-      x.date.is_a?(Time) ? x.date : Chronic.parse(x.date)
+    @reminders.map! do |x|
+       x.date = x.date.is_a?(Time) ? x.date : Chronic.parse(x.date)
+       x
+    end
+     
+    # synchronise with the XML file
+    # if XML file doesn't exist, create it
+    
+    if File.exists? @dxfilepath then
+      
+      dx = Dynarex.new @dxfilepath
+      
+      @reminders.map do |reminder|
+        
+        r = dx.find_by_input reminder.input
+        reminder.date = Date.parse r.date
+        
+        reminder
+      end
+      
+    else
+      create_dx()
     end
     
-    @raw_input[0..2].join + a.map(&:input).join()
+
+    # delete expired non-recurring reminders
+    @reminders.reject! {|x|  x.date.to_time < @now }
+    
+    @reminders.sort_by!(&:date)
+    
   end
+  
+  def to_s()
+    @raw_input[0..2].join + @reminders.map(&:input).join("\n")
+  end
+  
+  alias update refresh
     
   protected
 
@@ -82,7 +129,7 @@ class RemindersTxt
       end
       
 
-      RecordX.new input: input, title: title, recurring: recurring, date: date, end_date: end_date
+      OpenStruct.new input: input, title: title, recurring: recurring, date: date, end_date: end_date
       #[0, title, recurring, time, date, end_date].inspect
     end
     
@@ -90,21 +137,21 @@ class RemindersTxt
     # some meeting First thursday of the month at 7:30pm
     get /(.*)\s+(\w+ \w+day of (?:the|every) month at .*)/ do |title, recurring|
       
-      RecordX.new input: '', title: title, recurring: recurring
+      OpenStruct.new input: '', title: title, recurring: recurring
       #[1, title, recurring].inspect
     end        
  
     # some important day 24th Mar
     get /(.*)\s+(\d+.*)/ do |title, date|
       
-      RecordX.new input: '', title: title, date: date
+      OpenStruct.new input: '', title: title, date: date
       #[2, title, date].inspect
     end
     
     # 27-Mar@1436 some important day
     get /(\d[^\s]+)\s+(.*)/ do |date, title|
 
-      RecordX.new input: '', title: title, date: date
+      OpenStruct.new input: '', title: title, date: date
       #[3, title, date].inspect
     end    
     
@@ -120,4 +167,3 @@ class RemindersTxt
   alias find_expression run_route
   
 end
-
