@@ -146,7 +146,7 @@ class RemindersTxt
         if d < @now then
           
           new_date = CronFormat.new(ChronicCron.new(recurring).to_expression, d).to_time
-          input.gsub!(date, new_date.strftime("#{new_date.day.ordinal} %b %Y"))        
+          input.gsub!(raw_date, new_date.strftime("#{new_date.day.ordinal} %b %Y"))        
           d = new_date
           
         end
