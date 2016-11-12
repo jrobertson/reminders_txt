@@ -52,6 +52,8 @@ class RemindersTxt
       r
     end
     
+    @updated = false
+    
     update()
   end
   
@@ -64,11 +66,6 @@ class RemindersTxt
   end
   
   def refresh()
-    
-    #@reminders.map! do |x|
-    #   x.date = x.date.is_a?(Time) ? x.date : Chronic.parse(x.date)
-    #   x
-    #end
 
     # synchronise with the XML file
     # if XML file doesn't exist, create it
@@ -82,6 +79,8 @@ class RemindersTxt
         r = dx.find_by_input s
         
         # it is on file and it's not an annual event?
+        # use the date from file if the record exists
+        
         reminder.date = (r and not s[/\*$/]) ? Date.parse(r.date) : reminder.date.to_date
         
         reminder
@@ -106,7 +105,7 @@ class RemindersTxt
       
       save_dx()      
       File.write @filename, self.to_s 
-
+      @updated = true
     end
     
     [:refresh, b]
@@ -118,6 +117,10 @@ class RemindersTxt
   end
   
   alias update refresh
+  
+  def updated?()
+    @updated
+  end
     
   protected
 
