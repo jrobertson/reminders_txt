@@ -25,9 +25,10 @@ class RemindersTxt
   include AppRoutes
   using Ordinals
   
-  attr_reader :expressions
+  attr_reader :reminders
   
-  def initialize(filename='reminders.txt', now: Time.now, dxfilepath: 'reminders.xml')
+  def initialize(filename='reminders.txt', now: Time.now, 
+                 dxfilepath: 'reminders.xml')
     
     
     s = File.read filename
@@ -59,7 +60,8 @@ class RemindersTxt
   
   def save_dx()
     
-    dx = Dynarex.new('reminders/reminder(input, title, recurring, date, end_date)')
+    dx = Dynarex.new(
+      'reminders/reminder(input, title, recurring, date, end_date)')
     @reminders.each {|x| dx.create x.to_h}
     dx.save @dxfilepath
     
@@ -74,22 +76,22 @@ class RemindersTxt
 
       dx = Dynarex.new @dxfilepath
       
-      @reminders.map do |reminder|
+      @reminders.each do |reminder|
         s = reminder.input
         r = dx.find_by_input s
         
         # it is on file and it's not an annual event?
         # use the date from file if the record exists
         
-        reminder.date = (r and not s[/\*$/]) ? Date.parse(r.date) : reminder.date.to_date
+        reminder.date = (r and not s[/\*$/]) ? Date.parse(r.date) : \
+                                                    reminder.date.to_date
         
-        reminder
       end
             
     end
 
     # delete expired non-recurring reminders
-    @reminders.reject! {|x|  x.date.to_time < @now }
+    @reminders.reject! {|x|  x.date.to_time < @now if not x.recurring }
     
     @reminders.sort_by!(&:date)
     
@@ -137,7 +139,7 @@ class RemindersTxt
     starting = /(?:\(?\s*starting (\d+\w{2} \w+\s*\w*)(?: until (.*))?\s*\))?/
 
     get /^(.*)(every \w+ \w+(?: at (\d+am) )?)\s*#{starting}/ do \
-                                                |title, recurring, time, raw_date, end_date|
+                                   |title, recurring, time, raw_date, end_date|
       
       input = params[:input]
       
@@ -148,15 +150,18 @@ class RemindersTxt
         
         if d < @now then
           
-          new_date = CronFormat.new(ChronicCron.new(recurring).to_expression, d).to_time
-          input.gsub!(raw_date, new_date.strftime("#{new_date.day.ordinal} %b %Y"))        
+          new_date = CronFormat.new(ChronicCron.new(recurring)\
+                                    .to_expression, d).to_time
+          input.gsub!(raw_date, new_date\
+                      .strftime("#{new_date.day.ordinal} %b %Y"))        
           d = new_date
           
         end
       end
       
 
-      OpenStruct.new input: input, title: title, recurring: recurring, date: d, end_date: end_date
+      OpenStruct.new input: input, title: title, recurring: recurring, 
+                                                date: d, end_date: end_date
       #[0, title, recurring, time, date, end_date].inspect
     end
     
@@ -173,11 +178,18 @@ class RemindersTxt
 
       d = Chronic.parse(raw_date)
       
-      if annualar and d < @now then
-        d = Chronic.parse(raw_date, now: Time.local(@now.year + 1, 1, 1)) 
+      recurring = nil
+      
+      if annualar then
+        
+        recurring = 'yearly'
+        if d < @now then
+          d = Chronic.parse(raw_date, now: Time.local(@now.year + 1, 1, 1)) 
+        end
       end
-
-      OpenStruct.new input: params[:input], title: title, date: d
+      
+      OpenStruct.new input: params[:input], title: title, date: d, 
+                                                        recurring: recurring
       #[2, title, date].inspect
     end
     
@@ -185,13 +197,19 @@ class RemindersTxt
     get /(\d[^\s]+)\s+([^\*]+)(\*)?/ do |raw_date, title, annualar|
 
       d = Chronic.parse(raw_date)
+      recurring = nil
       
-      if annualar and d < @now then
-        d = Chronic.parse(raw_date, now: Time.local(@now.year + 1, 1, 1)) 
+      if annualar then
+        
+        recurring = 'yearly'
+        if d < @now then
+          d = Chronic.parse(raw_date, now: Time.local(@now.year + 1, 1, 1)) 
+        end
       end
       
       
-      OpenStruct.new input: params[:input], title: title, date: d
+      OpenStruct.new input: params[:input], title: title, date: d, 
+                                                    recurring: recurring
       #[3, title, date].inspect
     end    
     
