@@ -91,7 +91,7 @@ class RemindersTxt
     end
 
     # delete expired non-recurring reminders
-    @reminders.reject! {|x|  x.date.to_time < @now if not x.recurring }
+    #@reminders.reject! {|x|  x.date.to_time < @now if not x.recurring }
     
     @reminders.sort_by!(&:date)
     
@@ -137,6 +137,7 @@ class RemindersTxt
 
 
     starting = /(?:\(?\s*starting (\d+\w{2} \w+\s*\w*)(?: until (.*))?\s*\))?/
+    weekday = Date::DAYNAMES.join('|').downcase
 
     get /^(.*)(every \w+ \w+(?: at (\d+am) )?)\s*#{starting}/ do \
                                    |title, recurring, time, raw_date, end_date|
@@ -160,19 +161,32 @@ class RemindersTxt
       end
       
 
+      #puts [0, title, recurring, time, raw_date, end_date].inspect
       OpenStruct.new input: input, title: title, recurring: recurring, 
                                                 date: d, end_date: end_date
-      #[0, title, recurring, time, date, end_date].inspect
+      
     end
     
     # some meeting 3rd thursday of the month at 7:30pm
     # some meeting First thursday of the month at 7:30pm
     get /(.*)\s+(\w+ \w+day of (?:the|every) month at .*)/ do |title, recurring|
-      
+
+      #puts [1, title, recurring].inspect      
       OpenStruct.new input: params[:input], title: title, recurring: recurring
-      #[1, title, recurring].inspect
-    end        
+
+    end
+    
+    # hall 2 friday at 11am
+    get /(.*)\s+(#{weekday})\s+at\s+(.*)/i do |title, raw_day, time|
+      
+      d = Chronic.parse(raw_day + ' ' + time)
+      
+      #puts [1.5, title, raw_day].inspect
+      OpenStruct.new input: params[:input], title: title, date: d
+      
+    end
  
+    # hall 2 friday at 11am
     # some important day 24th Mar
     get /(.*)\s+(\d+[^\*]+)(\*)?/ do |title, raw_date, annualar|
 
@@ -188,9 +202,9 @@ class RemindersTxt
         end
       end
       
+      #puts [2, title, raw_date].inspect
       OpenStruct.new input: params[:input], title: title, date: d, 
-                                                        recurring: recurring
-      #[2, title, date].inspect
+                                                        recurring: recurring      
     end
     
     # 27-Mar@1436 some important day
@@ -208,9 +222,9 @@ class RemindersTxt
       end
       
       
+      #puts [3, title, raw_date].inspect
       OpenStruct.new input: params[:input], title: title, date: d, 
-                                                    recurring: recurring
-      #[3, title, date].inspect
+                                                    recurring: recurring      
     end    
     
     # e.g. 04-Aug@12:34
