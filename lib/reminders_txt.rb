@@ -91,7 +91,7 @@ class RemindersTxt
     end
 
     # delete expired non-recurring reminders
-    #@reminders.reject! {|x|  x.date.to_time < @now if not x.recurring }
+    @reminders.reject! {|x|  x.date.to_time < @now if not x.recurring }
     
     @reminders.sort_by!(&:date)
     
