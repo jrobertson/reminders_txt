@@ -27,101 +27,38 @@ class RemindersTxt
   
   attr_reader :reminders
   
-  def initialize(filename='reminders.txt', now: Time.now, 
-                 dxfilepath: 'reminders.xml')
-    
-    
-    s = File.read filename
-    @file_contents, @filename = s, filename
-    @now = now
-    
-    Dir.chdir File.dirname(filename)
-    
-    @dxfilepath = dxfilepath
-    
+  def initialize(filepath='reminders.txt', now: Time.now)
+
     super()
-    @params = {}
-    expressions(@params)
-    buffer = s.lines[2..-1]
-
-    @reminders = buffer.inject([]) do |r, x|  
-      if (x.length > 1) then
-        @params[:input] = x.strip
-        rx = find_expression(x) 
-        r << rx
-      end
-      r
+    
+    @now = now    
+    @filepath = filepath
+    
+    if File.extname(filepath) == '.txt' then
+      import_txt(filepath)
+      refresh()
+    else
+      @dx = Dynarex.new filepath
     end
-    
-    @updated = false
-    
-    update()
   end
-  
-  def save_dx()
-    
-    dx = Dynarex.new(
-      'reminders/reminder(input, title, recurring, date, end_date)')
-    @reminders.each {|x| dx.create x.to_h}
-    dx.save @dxfilepath
-    
+
+  def upcoming(ndays=5, days: ndays)
+    @dx.filter {|x| Date.parse(x.date) <= Date.today + days}
   end
-  
-  def refresh()
-
-    # synchronise with the XML file
-    # if XML file doesn't exist, create it
     
-    if File.exists? @dxfilepath then
-
-      dx = Dynarex.new @dxfilepath
-      
-      @reminders.each do |reminder|
-        s = reminder.input
-        r = dx.find_by_input s
-        
-        # it is on file and it's not an annual event?
-        # use the date from file if the record exists
-        
-        reminder.date = (r and not s[/\*$/]) ? Date.parse(r.date) : \
-                                                    reminder.date.to_date
-        
-      end
-            
-    end
-
-    # delete expired non-recurring reminders
-    @reminders.reject! {|x|  x.date.to_time < @now if not x.recurring }
-    
-    @reminders.sort_by!(&:date)
-    
-
-    # did the reminders change?
-    
-    h1 = (Digest::MD5.new << self.to_s).to_s
-    h2 = (Digest::MD5.new << @file_contents).to_s
-
-    b = h1 != h2
-        
-    if b then
-      
-      save_dx()      
-      File.write @filename, self.to_s 
-      @updated = true
-    end
-    
-    [:refresh, b]
-        
-  end
-  
-  def to_s()
-    @file_contents.lines[0..2].join + @reminders.map(&:input).join("\n")
-  end
-  
-  alias update refresh
-  
   def updated?()
     @updated
+  end  
+  
+  def to_s()
+
+    filename = File.basename(@filepath).sub(/\.xml$/, '.txt')
+    [filename,  '=' * filename.length, '', *@dx.all.map(&:input)].join("\n")
+
+  end
+  
+  def to_xml()
+    @dx.to_xml pretty: true
   end
     
   protected
@@ -237,5 +174,95 @@ class RemindersTxt
   end
   
   alias find_expression run_route
+  
+  private
+  
+  def import_txt(filepath)
+
+    s = File.read filepath
+    @file_contents, @filename = s, File.basename(filepath)
+    
+    #Dir.chdir File.dirname(filename)
+    
+    @dxfilepath = filepath.sub(/.txt$/,'.xml')
+    
+
+    @params = {}
+    expressions(@params)
+    buffer = s.lines[2..-1]
+
+    @reminders = buffer.inject([]) do |r, x|  
+      if (x.length > 1) then
+        @params[:input] = x.strip
+        rx = find_expression(x) 
+        r << rx
+      end
+      r
+    end
+    
+    @updated = false
+    
+    refresh()
+    
+  end
+  
+  # synchronise with the XML file and remove any expired dates
+  #
+  def refresh()
+
+
+    # if XML file doesn't exist, create it
+    
+    if File.exists? @dxfilepath then
+
+      @dx = Dynarex.new @dxfilepath
+      
+      @reminders.each do |reminder|
+        s = reminder.input
+        r = @dx.find_by_input s
+        
+        # it is on file and it's not an annual event?
+        # use the date from file if the record exists
+        
+        reminder.date = (r and not s[/\*$/]) ? Date.parse(r.date) : \
+                                                    reminder.date.to_date
+        
+      end
+            
+    end
+
+    # delete expired non-recurring reminders
+    @reminders.reject! {|x|  x.date.to_time < @now if not x.recurring }
+    
+    @reminders.sort_by!(&:date)
+    
+
+    # did the reminders change?
+    
+    h1 = (Digest::MD5.new << self.to_s).to_s
+    h2 = (Digest::MD5.new << @file_contents).to_s
+
+    b = h1 != h2
+        
+    if b then
+      
+      save_dx()      
+      File.write @filename, self.to_s 
+      @updated = true
+    end
+    
+    [:refresh, b]
+        
+  end  
+  
+  def save_dx()
+    
+    @dx = Dynarex.new(
+      'reminders/reminder(input, title, recurring, date, end_date)')
+    @reminders.each {|x| @dx.create x.to_h}
+    @dx.save @dxfilepath
+    
+  end
+  
   
 end
