@@ -11,7 +11,7 @@ require 'chronic_cron'
 
 module Ordinals
 
-  refine Fixnum do
+  refine Integer do
     def ordinal
       self.to_s + ( (10...20).include?(self) ? 'th' : 
                     %w{ th st nd rd th th th th th th }[self % 10] )
@@ -27,23 +27,26 @@ class RemindersTxt
   
   attr_reader :reminders
   
-  def initialize(filepath='reminders.txt', now: Time.now)
+  def initialize(raw_s='reminders.txt', now: Time.now)
 
     super()
     
     @now = now    
-    @filepath = filepath
+    @filepath = raw_s
     
-    if File.extname(filepath) == '.txt' then
-      import_txt(filepath)
+    if raw_s.lines.length > 1 then
+      @filepath = 'reminders.xml'
+      @dx = Dynarex.new raw_s
+    elsif File.extname(@filepath) == '.txt'
+      import_txt(@filepath)
       refresh()
     else
-      @dx = Dynarex.new filepath
+      @dx = Dynarex.new @filepath
     end
   end
 
   def upcoming(ndays=5, days: ndays)
-    @dx.filter {|x| Date.parse(x.date) <= Date.today + days}
+    @dx.filter {|x| Date.parse(x.date) <= @now.to_date + days.to_i}
   end
     
   def updated?()
