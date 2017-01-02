@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name = 'reminders_txt'
-  s.version = '0.3.8'
+  s.version = '0.3.9'
   s.summary = 'Reads and updates diary reminders from a plain text file'
   s.authors = ['James Robertson']
   s.files = Dir['lib/reminders_txt.rb']
@@ -10,6 +10,6 @@ Gem::Specification.new do |s|
   s.signing_key = '../privatekeys/reminders_txt.pem'
   s.cert_chain  = ['gem-public_cert.pem']
   s.license = 'MIT'
-  s.email = 'james@r0bertson.co.uk'
+  s.email = 'james@jamesrobertson.eu'
   s.homepage = 'https://github.com/jrobertson/reminders_txt'
 end

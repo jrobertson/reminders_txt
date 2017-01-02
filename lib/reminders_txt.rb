@@ -38,6 +38,7 @@ class RemindersTxt
       @filepath = 'reminders.xml'
       @dx = Dynarex.new raw_s
     elsif File.extname(@filepath) == '.txt'
+
       import_txt(@filepath)
       refresh()
     else
@@ -150,7 +151,7 @@ class RemindersTxt
     # 27-Mar@1436 some important day
     get /(\d[^\s]+)\s+([^\*]+)(\*)?/ do |raw_date, title, annualar|
 
-      d = Chronic.parse(raw_date)
+      d = Chronic.parse(raw_date, :endian_precedence => :little)
       recurring = nil
       
       if annualar then
@@ -238,7 +239,6 @@ class RemindersTxt
     @reminders.reject! {|x|  x.date.to_time < @now if not x.recurring }
     
     @reminders.sort_by!(&:date)
-    
 
     # did the reminders change?
     
@@ -250,7 +250,7 @@ class RemindersTxt
     if b then
       
       save_dx()      
-      File.write @filename, self.to_s 
+      File.write File.join(File.dirname(@filepath), 'reminders.txt'), self.to_s 
       @updated = true
     end
     
