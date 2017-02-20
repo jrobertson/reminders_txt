@@ -215,6 +215,7 @@ class RemindersTxt
   def refresh()
 
 
+    reminders = @reminders.clone
     # if XML file doesn't exist, create it
     
     if File.exists? @dxfilepath then
@@ -246,8 +247,8 @@ class RemindersTxt
     h2 = (Digest::MD5.new << @file_contents).to_s
 
     b = h1 != h2
-        
-    if b then
+    
+    if b or @reminders != reminders then
       
       save_dx()      
       File.write File.join(File.dirname(@filepath), 'reminders.txt'), self.to_s 
