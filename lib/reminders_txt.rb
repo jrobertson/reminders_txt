@@ -25,7 +25,7 @@ class RemindersTxt
   include AppRoutes
   using Ordinals
   
-  attr_reader :reminders
+  attr_reader :reminders, :dx
   
   def initialize(raw_s='reminders.txt', now: Time.now)
 
@@ -35,14 +35,34 @@ class RemindersTxt
     @filepath = raw_s
     
     if raw_s.lines.length > 1 then
-      @filepath = 'reminders.xml'
-      @dx = Dynarex.new raw_s
+
+      if raw_s.lstrip[0] == '<' then
+        
+        @filepath = 'reminders.xml'
+        @dx = Dynarex.new raw_s
+        
+      else
+
+        @filepath = File.join(Dir.pwd, 'reminders.txt')
+        @dxfilepath = @filepath.sub(/.txt$/,'.xml')              
+
+        @dx = Dynarex.new
+        import_txt(raw_s)       
+        
+      end
+      
     elsif File.extname(@filepath) == '.txt'
 
-      import_txt(@filepath)
-      refresh()
+      s = File.read @filepath
+      @filename =  File.basename(@filepath)
+      @dxfilepath = @filepath.sub(/.txt$/,'.xml')      
+      
+      import_txt(s)
+      
     else
+      
       @dx = Dynarex.new @filepath
+      
     end
   end
 
@@ -129,7 +149,7 @@ class RemindersTxt
  
     # hall 2 friday at 11am
     # some important day 24th Mar
-    get /(.*)\s+(\d+[^\*]+)(\*)?/ do |title, raw_date, annualar|
+    get /([^\d]+)\s+(\d+[^\*]+)(\*)?/ do |title, raw_date, annualar|
 
       d = Chronic.parse(raw_date)
       
@@ -181,16 +201,9 @@ class RemindersTxt
   
   private
   
-  def import_txt(filepath)
+  def import_txt(s)
 
-    s = File.read filepath
-    @file_contents, @filename = s, File.basename(filepath)
-    
-    #Dir.chdir File.dirname(filename)
-    
-    @dxfilepath = filepath.sub(/.txt$/,'.xml')
-    
-
+    @file_contents = s
     @params = {}
     expressions(@params)
     buffer = s.lines[2..-1]
@@ -214,10 +227,9 @@ class RemindersTxt
   #
   def refresh()
 
-
     reminders = @reminders.clone
     # if XML file doesn't exist, create it
-    
+
     if File.exists? @dxfilepath then
 
       @dx = Dynarex.new @dxfilepath
@@ -233,6 +245,10 @@ class RemindersTxt
                                                     reminder.date.to_date
         
       end
+      
+    else
+
+      save_dx()
             
     end
 
@@ -247,7 +263,7 @@ class RemindersTxt
     h2 = (Digest::MD5.new << @file_contents).to_s
 
     b = h1 != h2
-    
+
     if b or @reminders != reminders then
       
       save_dx()      
