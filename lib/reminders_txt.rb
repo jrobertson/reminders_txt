@@ -65,6 +65,18 @@ class RemindersTxt
       
     end
   end
+  
+  def add(s)
+
+    @params = {}    
+    expressions(@params)
+    @params[:input] = s
+
+    @reminders << find_expression(s) 
+
+    refresh()        
+
+  end
 
   def upcoming(ndays=5, days: ndays)
     @dx.filter {|x| Date.parse(x.date) <= @now.to_date + days.to_i}
