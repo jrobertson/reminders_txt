@@ -111,6 +111,9 @@ class RemindersTxt
 
     starting = /(?:\(?\s*starting (\d+\w{2} \w+\s*\w*)(?: until (.*))?\s*\))?/
     weekday = Date::DAYNAMES.join('|').downcase
+    months = (Date::MONTHNAMES[1..-1] + Date::ABBR_MONTHNAMES[1..-1])
+      .join('|').downcase
+
 
     get /^(.*)(every \w+ \w+(?: at (\d+am) )?)\s*#{starting}/ do \
                                    |title, recurring, time, raw_date, end_date|
@@ -142,7 +145,8 @@ class RemindersTxt
     
     # some meeting 3rd thursday of the month at 7:30pm
     # some meeting First thursday of the month at 7:30pm
-    get /(.*)\s+(\w+ \w+day of (?:the|every) month at .*)/ do |title, recurring|
+    get /(.*)\s+(\w+ \w+day of (?:the|every) month at .*)/ do 
+                                                             |title, recurring|
 
       #puts [1, title, recurring].inspect      
       OpenStruct.new input: params[:input], title: title, recurring: recurring
@@ -158,13 +162,29 @@ class RemindersTxt
       OpenStruct.new input: params[:input], title: title, date: d
       
     end
+    
+    # e.g. 21/05/2017 Forum meetup at Roundpeg from 2pm
+    get /^(\d+\/\d+\/\d+)\s+(.*)(?: from|at)\s+(\d+[ap]m)/ do 
+                                                    |raw_date, title, raw_time|
+      
+      d = Chronic.parse(raw_date + ' ' + 
+                        raw_time, :endian_precedence => :little)
+      recurring = nil            
+      
+      #puts [3, title, raw_date].inspect
+      OpenStruct.new input: params[:input], title: title, date: d
+    end        
  
     # hall 2 friday at 11am
     # some important day 24th Mar
-    get /([^\d]+)\s+(\d+[^\*]+)(\*)?/ do |title, raw_date, annualar|
+    
+    with_date = "(.*)\\s+(\\d\+\s*(?:st|nd|rd|th)?\\s+(?:#{months}))"
+    alt_pattern = '([^\d]+)\s+(\d+[^\*]+)(\*)?'
+    
+    get /#{with_date}|#{alt_pattern}\s*(\*)$/i do |title, raw_date, annualar|
 
       d = Chronic.parse(raw_date)
-      
+
       recurring = nil
       
       if annualar then
@@ -200,9 +220,12 @@ class RemindersTxt
                                                     recurring: recurring      
     end    
     
-    # e.g. 04-Aug@12:34
-    get '*' do
 
+        
+    
+    # e.g. 04-Aug@12:34
+    get '*' do |s|
+      puts 's: ' + s.inspect
       'pattern unrecognised'
     end
 
@@ -230,7 +253,7 @@ class RemindersTxt
     end
     
     @updated = false
-    
+
     refresh()
     
   end
@@ -265,7 +288,7 @@ class RemindersTxt
     end
 
     # delete expired non-recurring reminders
-    @reminders.reject! {|x|  x.date.to_time < @now if not x.recurring }
+    @reminders.reject! {|x| x.date.to_time < @now if not x.recurring }
     
     @reminders.sort_by!(&:date)
 
