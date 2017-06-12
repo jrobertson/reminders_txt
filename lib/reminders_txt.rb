@@ -66,7 +66,7 @@ class RemindersTxt
   end
 
   def upcoming(ndays=5, days: ndays)
-    @dx.filter {|x| Date.parse(x.date) <= @now.to_date + days.to_i}
+    @dx.filter {|x| DateTime.parse(x.date) <= @now.to_datetime + days.to_i}
   end
     
   def updated?()
@@ -128,8 +128,8 @@ class RemindersTxt
         # it is on file and it's not an annual event?
         # use the date from file if the record exists
         
-        reminder.date = (r and not s[/\*$/]) ? Date.parse(r.date) : \
-                                                    reminder.date.to_date
+        reminder.date = (r and not s[/\*$/]) ? DateTime.parse(r.date) : \
+                                                    reminder.date.to_datetime
         
       end
       
@@ -169,6 +169,7 @@ class RemindersTxt
     @reminders.each {|x| @dx.create x.to_h}
     @dx.save @dxfilepath
     
-  end  
+  end
+  
   
 end
