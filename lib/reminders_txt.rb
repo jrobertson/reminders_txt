@@ -103,7 +103,7 @@ class RemindersTxt
 
       r
     end
-    
+    puts '@reminders: ' + @reminders.inspect
     @updated = false
 
     refresh()
@@ -125,11 +125,14 @@ class RemindersTxt
         s = reminder.input
         r = @dx.find_by_input s
         
-        # it is on file and it's not an annual event?
+        # it is on file and it's not a recurring or annual event?
         # use the date from file if the record exists
-        
-        reminder.date = (r and not s[/\*$/]) ? DateTime.parse(r.date) : \
-                                                    reminder.date.to_datetime
+
+        if (r and r.recurring.empty? and not s[/\*$/]) then
+          DateTime.parse(r.date)
+        else
+          reminder.date.to_datetime
+        end
         
       end
       
