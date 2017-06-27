@@ -163,7 +163,39 @@ class RemindersTxt
     
     [:refresh, b]
         
-  end  
+  end
+
+  def save_detail()
+    
+    # fetch the notes file if it exists
+    filepath = File.dirname @dxfilepath
+        
+    notesfile = File.join(filepath, 'reminder_notes.xml')
+    return unless File.exists? notesfile
+    
+    dx = Dynarex.new notesfile    
+
+    h = dx.all.inject({}) do |r,x| 
+
+      a = x.info.lines
+      tag = a.shift[/\w+/]
+      body = a.join.strip
+      
+      r.merge(tag.to_sym => body)
+      
+    end
+
+    rows = @dx.all.map do |x|
+      hashtag = x.title[/#(\w+)/,1]
+      hashtag ? x.to_h.merge(info: h[hashtag.to_sym]) : x.to_h
+    end
+
+    dx2 = Dynarex.new 'reminders/reminder(input, title, recurring, ' + 
+        'date, end_date, info)'
+    dx2.import rows
+    dx2.save File.join(filepath, 'reminder_details.xml')
+
+  end
   
   def save_dx()
     
@@ -172,7 +204,8 @@ class RemindersTxt
     @reminders.each {|x| @dx.create x.to_h}
     @dx.save @dxfilepath
     
+    save_detail()
+    
   end
-  
-  
+    
 end
