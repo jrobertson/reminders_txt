@@ -8,16 +8,23 @@ require 'event_nlp'
 require 'digest/md5'
 
 
+class RemindersTxtException < Exception
+  
+
+end
+
 class RemindersTxt
 
   
   attr_reader :reminders, :dx
   
-  def initialize(raw_s='reminders.txt', now: Time.now)
+  def initialize(raw_s='reminders.txt', now: Time.now, debug: false)
 
     super()
 
-    @now = now    
+    @now, @debug = now, debug
+    
+    puts '@now: ' + @now.inspect if @debug
 
     
     @filepath = raw_s
@@ -64,14 +71,50 @@ class RemindersTxt
     refresh()        
 
   end
+  
+  def before(d)
+    
+    future_date = d.is_a?(String) ? Chronic.parse(d).to_datetime : d
+    @dx.filter {|x| DateTime.parse(x.date) < future_date}
+    
+  end
+  
+  def find(s)
+    @dx.filter {|x| x.title =~ /#{s}/i}
+  end
 
-  def upcoming(ndays=5, days: ndays)
-    @dx.filter {|x| DateTime.parse(x.date) <= @now.to_datetime + days.to_i}
+  def upcoming(ndays=5, days: ndays, months: nil)
+    
+    next_date = if months then
+      @now.to_datetime >> months.to_i
+    else
+      @now.to_datetime + days.to_i
+    end
+    
+    @dx.filter {|x| DateTime.parse(x.date) <= next_date}
   end
     
   def updated?()
     @updated
   end  
+  
+  def today()
+    upcoming 0
+  end
+  
+  def tomorrow()
+    upcoming days: 1
+  end
+  
+  def this_week()
+    upcoming days: 6
+  end
+  
+  alias weekahead this_week
+  
+  def this_year()
+    upcoming months: 12
+  end
   
   def to_s()
 
@@ -103,7 +146,7 @@ class RemindersTxt
 
       r
     end
-    puts '@reminders: ' + @reminders.inspect
+
     @updated = false
 
     refresh()
@@ -130,8 +173,14 @@ class RemindersTxt
 
         if (r and r.recurring.empty? and not s[/\*$/]) then
           DateTime.parse(r.date)
-        else
-          reminder.date.to_datetime
+        else          
+          
+          if reminder.date then
+            reminder.date.to_datetime
+          else
+            raise RemindersTxtException, 'nil date  for reminder : ' \
+                + reminder.inspect
+          end
         end
         
       end
@@ -143,7 +192,17 @@ class RemindersTxt
     end
 
     # delete expired non-recurring reminders
-    @reminders.reject! {|x| x.date.to_time < @now if not x.recurring }
+    @reminders.reject! do |x|
+      
+      if @debug then
+        puts 'rejects filter: '
+        puts '  x.input: ' + x.input.inspect
+        puts '  x.date.to_time: '  + x.date.to_time.inspect 
+      end
+      
+      x.date.to_time < @now if not x.recurring
+      
+    end
     
     @reminders.sort_by!(&:date)
 
@@ -155,10 +214,12 @@ class RemindersTxt
     b = h1 != h2
 
     if b or @reminders != reminders then
-      
+
       save_dx()      
       File.write File.join(File.dirname(@filepath), 'reminders.txt'), self.to_s 
       @updated = true
+    else
+      puts 'no update'
     end
     
     [:refresh, b]
@@ -207,5 +268,6 @@ class RemindersTxt
     save_detail()
     
   end
-    
+  
+  
 end
