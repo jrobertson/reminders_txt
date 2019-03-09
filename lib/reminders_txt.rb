@@ -8,13 +8,27 @@ require 'event_nlp'
 require 'digest/md5'
 
 
+module Ordinal
+  refine Integer do
+
+    def ordinal
+      self.to_s + ( (10...20).include?(self) ? 'th' : 
+                          %w{ th st nd rd th th th th th th }[self % 10] )
+    end
+
+  end
+end
+
+
 class RemindersTxtException < Exception
   
 
 end
 
-class RemindersTxt
 
+class RemindersTxt
+  using ColouredText
+  include RXFHelperModule
   
   attr_reader :reminders, :dx
   
@@ -24,7 +38,7 @@ class RemindersTxt
 
     @now, @debug = now, debug
     
-    puts '@now: ' + @now.inspect if @debug
+    puts ('@now: ' + @now.inspect).debug if @debug
 
     
     @filepath = raw_s
@@ -48,7 +62,7 @@ class RemindersTxt
       
     elsif File.extname(@filepath) == '.txt'
 
-      s = File.read @filepath
+      s = FileX.read @filepath
       @filename =  File.basename(@filepath)
       @dxfilepath = @filepath.sub(/.txt$/,'.xml')      
       
@@ -141,6 +155,7 @@ class RemindersTxt
       if (x.length > 1) then
 
         rx = EventNlp.new(@now, params: {input: x}).parse(x)
+        puts ('rx: ' + rx.inspect).debug if @debug
         r << rx if rx
       end
 
@@ -160,7 +175,7 @@ class RemindersTxt
     reminders = @reminders.clone
     # if XML file doesn't exist, create it
 
-    if File.exists? @dxfilepath then
+    if FileX.exists? @dxfilepath then
 
       @dx = Dynarex.new @dxfilepath
 
@@ -216,7 +231,7 @@ class RemindersTxt
     if b or @reminders != reminders then
 
       save_dx()      
-      File.write File.join(File.dirname(@filepath), 'reminders.txt'), self.to_s 
+      FileX.write File.join(File.dirname(@filepath), 'reminders.txt'), self.to_s 
       @updated = true
     else
       puts 'no update'
@@ -252,7 +267,7 @@ class RemindersTxt
     end
 
     dx2 = Dynarex.new 'reminders/reminder(input, title, recurring, ' + 
-        'date, end_date, info)'
+        'date, end_date, venue, info)'
     dx2.import rows
     dx2.save File.join(filepath, 'reminder_details.xml')
 
@@ -261,7 +276,7 @@ class RemindersTxt
   def save_dx()
     
     @dx = Dynarex.new(
-      'reminders/reminder(input, title, recurring, date, end_date)')
+      'reminders/reminder(input, title, recurring, date, end_date, venue)')
     @reminders.each {|x| @dx.create x.to_h}
     @dx.save @dxfilepath
     
@@ -269,5 +284,30 @@ class RemindersTxt
     
   end
   
+  
+end
+
+class RemindersTxtVoice < RemindersTxt
+  using Ordinal
+  
+  def weekahead()
+    
+    s = super.all.map do |x|
+      date = DateTime.parse(x.date)
+      "you are at %s, on %s, at %s." % [(x.venue.empty? ? x.title : x.venue), \
+                                    format_date(date), date.strftime("%-I:%M%P")
+    ]
+    end.join(" Then ")
+
+    s.sub!(/^./){|x| x.upcase}    
+    
+  end
+  
+  private
+  
+  def format_date(date)
+    [Date::DAYNAMES[date.wday], 'the', date.day.ordinal, 'of', 
+     Date::MONTHNAMES[date.month]].join(' ')    
+  end  
   
 end
