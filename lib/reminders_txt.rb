@@ -6,18 +6,7 @@
 require 'dynarex'
 require 'event_nlp'
 require 'digest/md5'
-
-
-module Ordinal
-  refine Integer do
-
-    def ordinal
-      self.to_s + ( (10...20).include?(self) ? 'th' : 
-                          %w{ th st nd rd th th th th th th }[self % 10] )
-    end
-
-  end
-end
+require 'human_speakable'
 
 
 class RemindersTxtException < Exception
@@ -288,26 +277,18 @@ class RemindersTxt
 end
 
 class RemindersTxtVoice < RemindersTxt
-  using Ordinal
+  using HumanSpeakable
   
   def weekahead()
     
     s = super.all.map do |x|
       date = DateTime.parse(x.date)
-      "you are at %s, on %s, at %s." % [(x.venue.empty? ? x.title : x.venue), \
-                                    format_date(date), date.strftime("%-I:%M%P")
-    ]
+      "you are at %s, %s at %s." % [(x.venue.empty? ? x.title : x.venue), \
+                                    date.humanize, date.to_time.humanize]
     end.join(" Then ")
 
     s.sub!(/^./){|x| x.upcase}    
     
   end
-  
-  private
-  
-  def format_date(date)
-    [Date::DAYNAMES[date.wday], 'the', date.day.ordinal, 'of', 
-     Date::MONTHNAMES[date.month]].join(' ')    
-  end  
   
 end
