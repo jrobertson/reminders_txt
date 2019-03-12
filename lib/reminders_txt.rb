@@ -91,7 +91,7 @@ class RemindersTxt
     next_date = if months then
       @now.to_datetime >> months.to_i
     else
-      @now.to_datetime + days.to_i
+      ((@now.to_date + days.to_i + 1).to_time - 1).to_datetime
     end
     
     @dx.filter {|x| DateTime.parse(x.date) <= next_date}
@@ -279,16 +279,22 @@ end
 class RemindersTxtVoice < RemindersTxt
   using HumanSpeakable
   
-  def weekahead()
+  def weekahead() plain_talk(super) end
+  def today()     plain_talk(super) end
+  def tomorrow()  plain_talk(super) end
+  
+  private
+  
+  def plain_talk(entries)
     
-    s = super.all.map do |x|
+    s = entries.all.map do |x|
       date = DateTime.parse(x.date)
       "you are at %s, %s at %s." % [(x.venue.empty? ? x.title : x.venue), \
                                     date.humanize, date.to_time.humanize]
     end.join(" Then ")
 
     s.sub!(/^./){|x| x.upcase}    
-    
+        
   end
   
 end
