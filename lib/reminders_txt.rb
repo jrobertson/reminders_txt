@@ -75,6 +75,13 @@ class RemindersTxt
 
   end
   
+  def after(d)
+    
+    date = d.is_a?(String) ? Chronic.parse(d).to_datetime : d
+    @dx.filter {|x| DateTime.parse(x.date) > date}
+    
+  end  
+  
   def before(d)
     
     future_date = d.is_a?(String) ? Chronic.parse(d).to_datetime : d
@@ -143,7 +150,7 @@ class RemindersTxt
 
       if (x.length > 1) then
 
-        rx = EventNlp.new(@now, params: {input: x}).parse(x)
+        rx = EventNlp.new(@now, params: {input: x}, debug: @debug).parse(x)
         puts ('rx: ' + rx.inspect).debug if @debug
         r << rx if rx
       end
@@ -161,6 +168,8 @@ class RemindersTxt
   #
   def refresh()
 
+    puts 'inside refresh()' if @debug
+    
     reminders = @reminders.clone
     # if XML file doesn't exist, create it
 
@@ -169,7 +178,9 @@ class RemindersTxt
       @dx = Dynarex.new @dxfilepath
 
       @reminders.each do |reminder|
+        
         s = reminder.input
+        puts ('refresh() checking s: ' + s).debug if @debug
         r = @dx.find_by_input s
         
         # it is on file and it's not a recurring or annual event?
@@ -211,12 +222,18 @@ class RemindersTxt
     @reminders.sort_by!(&:date)
 
     # did the reminders change?
+    puts 'self.to_s: ' + self.to_s if @debug
     
     h1 = (Digest::MD5.new << self.to_s).to_s
     h2 = (Digest::MD5.new << @file_contents).to_s
 
     b = h1 != h2
-
+    
+    if @debug then
+      puts 'reminders: ' + reminders.inspect
+      puts '@reminders: ' + @reminders.inspect
+    end
+    
     if b or @reminders != reminders then
 
       save_dx()      
