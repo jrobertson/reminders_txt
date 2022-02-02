@@ -5,7 +5,7 @@ The reminders_txt gem makes it convenient to store reminders in a plain text fil
     require 'reminders_txt'
 
     filepath = '/home/james/jamesrobertson.eu/reminders/reminders.txt'
-    rt = RemindersTxt.new(filepath, dxfilepath: 'reminders.xml')
+    rt = RemindersTxt.new(filepath)
     puts rt.to_s
 
 
