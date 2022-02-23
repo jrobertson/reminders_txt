@@ -7,17 +7,17 @@ require 'dynarex'
 require 'event_nlp'
 require 'digest/md5'
 require 'human_speakable'
+require 'rxfreadwrite'
 
 
 class RemindersTxtException < Exception
-
 
 end
 
 
 class RemindersTxt
   using ColouredText
-  include RXFHelperModule
+  include RXFReadWriteModule
 
   attr_reader :reminders, :dx
 
@@ -41,7 +41,7 @@ class RemindersTxt
 
       else
 
-        @filepath = File.join(Dir.pwd, 'reminders.txt')
+        @filepath = File.join(DirX.pwd, 'reminders.txt')
         @dxfilepath = @filepath.sub(/.txt$/,'.xml')
 
         @dx = Dynarex.new
@@ -261,7 +261,7 @@ class RemindersTxt
     filepath = File.dirname @dxfilepath
 
     notesfile = File.join(filepath, 'reminder_notes.xml')
-    return unless File.exists? notesfile
+    return unless FileX.exists? notesfile
 
     dx = Dynarex.new notesfile
 
