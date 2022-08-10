@@ -8,7 +8,14 @@ require 'event_nlp'
 require 'digest/md5'
 require 'human_speakable'
 require 'rxfreadwrite'
+require 'vpim'
 
+
+class Fixnum
+  def ordinal
+    self.to_s + ( (10...20).include?(self) ? 'th' : %w{ th st nd rd th th th th th th }[self % 10] )
+  end
+end
 
 class RemindersTxtException < Exception
 
@@ -64,11 +71,20 @@ class RemindersTxt
     end
   end
 
-  def add(s)
+  def add(obj)
 
-    s.strip!
-    r = EventNlp.new(@now, params: {input: s}).parse(s)
-    return if r.nil?
+    if obj.is_a? String then
+
+      s = obj
+      s.strip!
+      r = EventNlp.new(@now, params: {input: s}).parse(s)
+      return if r.nil?
+
+    elsif obj.is_a? OpenStruct
+
+      r = obj
+
+    end
 
     @reminders << r
     refresh()
@@ -91,6 +107,40 @@ class RemindersTxt
 
   def find(s)
     @dx.filter {|x| x.title =~ /#{s}/i}
+  end
+
+  def import_vcs(filename)
+
+    puts 'filename:  ' + filename.inspect if @debug
+    icsfile = FileX.read filename
+    cal = Vpim::Icalendar.decode(icsfile).first
+    puts '*********************' if @debug
+    r = cal.components[0]
+    datestart = "%s %s" % [r.dtstart.day.ordinal, r.dtstart.strftime("%B %Y at %H:%M%P")]
+    event = "%s: %s at %s %s" % [r.categories.join(', '), r.summary, r.location, datestart]
+
+    if r.dtend then
+
+      if r.dtstart.to_date == r.dtend.to_date then
+        event += '-' + r.dtend.strftime("%H:%M%P")
+      else
+        dateend = "%s %s" % [r.dtend.day.ordinal, r.dtend.strftime("%B %Y at %H:%M%P")]
+        event += ' to ' + dateend
+      end
+
+    end
+
+    h = {
+      input: event,
+      title: "%s: %s" % [r.categories.join(', '), r.summary],
+      date: r.dtstart
+      }
+
+    h[:venue] = r.location if r.location
+    h[:end_date] = r.dtend if r.dtend
+
+    add OpenStruct.new(h)
+
   end
 
   def upcoming(ndays=5, days: ndays, months: nil)
